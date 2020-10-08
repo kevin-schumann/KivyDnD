@@ -47,7 +47,6 @@ debug.register = DEBUG_TOUCH_UP | DEBUG_TOUCH_MOVE | DEBUG_DRAG_START | DEBUG_CO
                  DEBUG_DRAG_FINISH | DEBUG_UNROOT_ME | DEBUG_REBORN | DEBUG_SUCCESSFUL_DROP |\
                  DEBUG_POST_SUCCESSFUL_ANIM
 
-
 # draggables_dict = dnd_storage_singletons.draggables_dict
 # drag_destinations_dict = dnd_storage_singletons.drag_destinations_dict
 
@@ -116,6 +115,7 @@ class DragNDropWidget(Widget):
         self.move_counter = 0
         self.touch_up_event_start = 0
         self._up_event_count = 0
+        self.bind_drop_group("test", "test")
 
     def close(self):
         """
@@ -240,6 +240,12 @@ class DragNDropWidget(Widget):
         #    debug.print ("touch down Me in relief", definitely=True)
         if self.collide_point(touch.x, touch.y) and self._draggable:
             # detect if the touch is "long"... (if not, dispatch drag)
+            for child in self.children[:]:
+                if child.collide_point(touch.x, touch.y) and issubclass(child.__class__, DragNDropWidget):
+                    child.dispatch('on_touch_down', touch)
+                    #child.dispatch('on_touch_move', touch)
+                    return True
+
             if (abs(touch.time_end - touch.time_start) > 0.2) or touch.is_double_tap:
                 self.touch_offset_x = touch.x - self.x
                 self.touch_offset_y = touch.y - self.y
@@ -274,6 +280,7 @@ class DragNDropWidget(Widget):
         if self.touch_up_event_start == mouse_motion_event.time_start:
             return
         self.touch_up_event_start = mouse_motion_event.time_start
+
         if not self.am_touched:
             # Only respond to long touches.
             debug.print(self, "NOT touched", level=DEBUG_TOUCH_UP)
@@ -329,6 +336,11 @@ class DragNDropWidget(Widget):
         :param mouse_motion_event:
         :return:
         """
+        for child in the_widget.children[:]:
+            if child.collide_point(mouse_motion_event.x, mouse_motion_event.y) and issubclass(child.__class__, DragNDropWidget):
+                child.dispatch('on_touch_move', mouse_motion_event)
+                return
+
         global DEBUG_TOUCH_MOVE
         if the_widget.am_touched:
             debug.print("MOVING", the_widget.text, level=DEBUG_TOUCH_MOVE)
@@ -553,7 +565,7 @@ n                  (This means it left that widget without dispatching on_motion
         # debug.print "absolute_collide_point:", self, "x,y,w,h:", my_x, my_y, self.right + my_x, my_y + self.top
         if event_x != Window.mouse_pos[0] or event_y != Window.mouse_pos[1]:
             debug.print ("absolute_collide_point:", self, "x,y,w,h:", my_x, my_y, self.right + my_x, my_y + self.top, level=DEBUG_COLLIDE_POINT)
-        return my_x <= event_x <= (self.width + my_x) and my_y <= event_y <= (my_y + self.height)
+        return my_x <= event_x <= (self.width+ my_x) and my_y <= event_y <= (my_y + self.height)
 
     def on_drag_finish(self, mouse_motion_event):
         global DEBUG_DRAG_FINISH
@@ -567,7 +579,6 @@ n                  (This means it left that widget without dispatching on_motion
         self.opacity = 1.0
         drag_destination_list = []
         self.found_drop_recipients_ok_dict = {}
-        # del self.drop_recipients[:]
         (touch_window_x, touch_window_y) = self.to_window(self.touch_x, self.touch_y)
         # -------------------------------------------------------------------------
         # --- assemble list of possible drag destinations
@@ -581,12 +592,14 @@ n                  (This means it left that widget without dispatching on_motion
                     for drop_recipient in drag_destinations_dict[drop_group]:
                         if not drop_recipient in drag_destination_list:
                             drag_destination_list.append(drop_recipient)
+
         debug.print("drag_destinations_dict:", drag_destinations_dict, level=DEBUG_DRAG_FINISH)
         # ..>Debugging only
         for drop_group in drag_destinations_dict:
             for obj in drag_destinations_dict[drop_group]:
                 debug.print("Contents: Title", debug_widget_title(obj), "object", obj, level=DEBUG_DRAG_FINISH)
         # ..<debugging
+
         for drop_group in drag_destinations_dict:
             if draggables_dict[drop_group].get(self):
                 for drop_recipient in drag_destinations_dict[drop_group]:
@@ -604,7 +617,6 @@ n                  (This means it left that widget without dispatching on_motion
         # --- check which object(s) did receive this drop.
         debug.print("drag_destination_list:", drag_destination_list, level=DEBUG_DRAG_FINISH)
         for obj in drag_destination_list:
-
             debug.print("Title:", debug_widget_title(self), level=DEBUG_DRAG_FINISH)
             debug.print("Touch position:", self.touch_x, self.touch_y,
                         "in-Window position:", touch_window_x, touch_window_y,
@@ -629,12 +641,12 @@ n                  (This means it left that widget without dispatching on_motion
                     #    pass
                 if obj is self._old_parent and not self.can_drop_into_parent:
                     self.found_drop_recipients_ok_dict[obj] = False
-                    debug.print("OK: False", level=DEBUG_DRAG_FINISH)
+                    #debug.print("OK: False", level=DEBUG_DRAG_FINISH)
                 else:
                     self.found_drop_recipients_ok_dict[obj] = True
                     debug.print("OK: True", level=DEBUG_DRAG_FINISH)
             else:
-                debug.print("COLLIDE: False", level=DEBUG_DRAG_FINISH)
+                #debug.print("COLLIDE: False", level=DEBUG_DRAG_FINISH)
                 pass
         # --- end of check
 
@@ -652,6 +664,7 @@ n                  (This means it left that widget without dispatching on_motion
         got_one_drop_not_parent = False
 
         # -------------------------------------------------------------------------
+        self.found_drop_recipients_ok_dict.pop(self, None)
         for found_drop_recipient, dropped_ok in self.found_drop_recipients_ok_dict.items():
             debug.print("Drop Recipient:", found_drop_recipient, dropped_ok, level=DEBUG_DRAG_FINISH)
             if dropped_ok:
@@ -665,7 +678,6 @@ n                  (This means it left that widget without dispatching on_motion
                     # TODO: its original parent may be the Window (not a widget).
                     # TODO: Therefore, animation is running when we don't want it.
                     got_one_drop_not_parent = True
-
         if not got_one_drop_not_parent:
             drop_ok_do_animation = False
         # -------------------------------------------------------------------------
@@ -697,6 +709,9 @@ n                  (This means it left that widget without dispatching on_motion
     def un_root_me(self, widget="dumb", anim="dumb2"):
         global DEBUG_UNROOT_ME
         debug.print ("Unroot start, parent: ", self.parent, "Me:", self, level=DEBUG_UNROOT_ME)
+        if not self.get_root_window():
+            return
+
         self.get_root_window().remove_widget(self)
         debug.print ("unroot done, parent: ", self.parent, "Me:", self, level=DEBUG_UNROOT_ME)
 

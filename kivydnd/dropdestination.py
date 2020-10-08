@@ -76,6 +76,7 @@ class DropDestination(Widget):
         self.motion_is_bound_to_window = False
         self.bind(drop_group=self.bind_drop_group)
         self.in_me = False
+        self.bind_drop_group("test", "test")
 
     def close(self):
         """
@@ -102,7 +103,7 @@ class DropDestination(Widget):
         for drop_group in drag_destinations_dict:
             if drag_destinations_dict[drop_group].get(self):
                 del drag_destinations_dict[drop_group][self]
-        # TODO: close all children (they have bound properties, too!
+
 
     def bind_drop_group(self, arg1, arg2):
         global DEBUG_BIND_DROP_GROUP
